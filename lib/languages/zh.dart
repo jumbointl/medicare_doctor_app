@@ -242,6 +242,21 @@ final Map<String, Map<String, String>> zhKeys = {
     "view_all_btn": "查看全部 >",
     "whatsapp_value": "WhatsApp：@value",
     "write_prescription": "开处方",
-    "yes": "是"
+    "yes": "是",
+    'video_join_google_ready': 'Google Meet 已就绪，正在打开链接。',
+    'video_join_google_not_available_fallback_agora':
+    'Google Meet 目前不可用，正在打开内部视频通话。',
+    'video_join_internal_ready': '内部视频通话已就绪。',
+    'video_join_not_video_consultation': '这次预约不是视频问诊。',
+    'video_join_payment_required': '开始视频通话前需要先完成付款。',
+    'video_join_not_available': '目前无法使用视频通话。',
+    'video_join_prepare_failed': '无法准备视频通话。',
+    'video_join_no_google_meet_link': '未找到 Google Meet 链接。',
+    'video_join_invalid_google_meet_link': 'Google Meet 链接无效。',
+    'video_join_cannot_open_google_meet': '无法打开 Google Meet。',
+    'video_join_invalid_video_link': '视频通话链接无效。',
+    'video_join_cannot_open_video': '无法打开视频通话。',
+    'video_join_unsupported_provider': '不支持的视频提供商。',
+    'video_join_consultation_title': '视频问诊',
   }
 };

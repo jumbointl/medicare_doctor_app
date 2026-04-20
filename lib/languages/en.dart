@@ -242,6 +242,21 @@ final Map<String, Map<String, String>> enKeys = {
     "view_all_btn": "View All >",
     "whatsapp_value": "Whatsapp: @value",
     "write_prescription": "Write Prescription",
-    "yes": "Yes"
+    "yes": "Yes",
+    'video_join_google_ready': 'Google Meet ready. Opening link.',
+    'video_join_google_not_available_fallback_agora':
+    'Google Meet is not available right now. Opening internal video call.',
+    'video_join_internal_ready': 'Internal video call ready.',
+    'video_join_not_video_consultation': 'This appointment is not a video consultation.',
+    'video_join_payment_required': 'Payment is required before starting the video call.',
+    'video_join_not_available': 'Video call is not available right now.',
+    'video_join_prepare_failed': 'Could not prepare the video call.',
+    'video_join_no_google_meet_link': 'Google Meet link was not found.',
+    'video_join_invalid_google_meet_link': 'Google Meet link is invalid.',
+    'video_join_cannot_open_google_meet': 'Could not open Google Meet.',
+    'video_join_invalid_video_link': 'Video call link is invalid.',
+    'video_join_cannot_open_video': 'Could not open the video call.',
+    'video_join_unsupported_provider': 'Unsupported video provider.',
+    'video_join_consultation_title': 'Video consultation',
   }
 };

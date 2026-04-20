@@ -61,8 +61,7 @@ final Map<String, Map<String, String>> zhTwKeys = {
     "appointmentStatusChangeWarning_4_value": "你確定要將狀態從 @currentStatus 更新為 @newStatus 嗎",
     "appointment_cancellation_request": "預約取消申請",
     "appointment_id": "預約編號 #@id",
-    "are_you_sure_want_to_delete": "你確定要刪除 @value 嗎",
-    "blood_pressure": "血壓",
+    "are_you_sure_want_to_delete": "你確定要刪除 @value 嗎",    "blood_pressure": "血壓",
     "breast_feeding": "哺乳",
     "can_marked_video_consultant": "當預約為視訊問診時可標記。",
     "canceled_appointment_status_desc": "此預約已取消，無法再編輯狀態。",
@@ -242,6 +241,21 @@ final Map<String, Map<String, String>> zhTwKeys = {
     "view_all_btn": "查看全部 >",
     "whatsapp_value": "WhatsApp：@value",
     "write_prescription": "開立處方",
-    "yes": "是"
+    "yes": "是",
+    'video_join_google_ready': 'Google Meet 已準備完成，正在開啟連結。',
+    'video_join_google_not_available_fallback_agora':
+    'Google Meet 目前無法使用，正在開啟內部視訊通話。',
+    'video_join_internal_ready': '內部視訊通話已準備完成。',
+    'video_join_not_video_consultation': '這次預約不是視訊看診。',
+    'video_join_payment_required': '開始視訊通話前需要先完成付款。',
+    'video_join_not_available': '目前無法使用視訊通話。',
+    'video_join_prepare_failed': '無法準備視訊通話。',
+    'video_join_no_google_meet_link': '找不到 Google Meet 連結。',
+    'video_join_invalid_google_meet_link': 'Google Meet 連結無效。',
+    'video_join_cannot_open_google_meet': '無法開啟 Google Meet。',
+    'video_join_invalid_video_link': '視訊通話連結無效。',
+    'video_join_cannot_open_video': '無法開啟視訊通話。',
+    'video_join_unsupported_provider': '不支援的視訊供應商。',
+    'video_join_consultation_title': '視訊看診',
   }
 };

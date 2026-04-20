@@ -1,6 +1,9 @@
 import 'dart:async';
 
-import '../agora/open_agora_call_with_cache.dart';
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+import 'package:video_conference/video_conference.dart';
 import '../model/patient_file_model.dart';
 import '../model/prescription_pre_field_model.dart';
 import '../pages/write_prescription_page.dart';
@@ -69,6 +72,7 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
   Timer? _videoTimer;
   int _videoRemainingSeconds = 0;
   bool _videoLoading = false;
+  String? _videoJoinMessage;
   @override
   void initState() {
     getAndSetData();
@@ -244,6 +248,196 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
     return int.tryParse(uid) ?? 0;
   }
 
+  Future<String> _getAuthToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(SharedPreferencesConstants.token) ?? '';
+  }
+
+  Future<VideoJoinData> _fetchDoctorVideoJoinData() async {
+    final appointmentId = appointmentModel?.id ?? 0;
+    if (appointmentId <= 0) {
+      throw Exception('Appointment id is invalid.');
+    }
+
+    final userId = await _getCurrentUserId();
+    final token = await _getAuthToken();
+
+    final uri = Uri.parse(
+      '${ApiContents.baseApiUrl}/api/v1/doctor-web/appointments/$appointmentId/video/join-data',
+    );
+
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      'x-api-key': 'solexpress_2026_api_key_x9LmP2Qa7vK81',
+    };
+
+    if (token.trim().isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+
+    final response = await http.post(
+      uri,
+      headers: headers,
+      body: jsonEncode({
+        'appointment_id': appointmentId,
+        'user_id': userId,
+      }),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(
+        'Video join-data request failed: ${response.statusCode} ${response.body}',
+      );
+    }
+
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw Exception('Invalid join-data response format.');
+    }
+
+    if (decoded['status'] == false) {
+      throw Exception(
+        _resolveJoinMessage(
+          key: decoded['message_key']?.toString(),
+          message: decoded['message']?.toString() ?? 'Join-data request failed.',
+        ),
+      );
+    }
+
+    final rawData = decoded['data'];
+    if (rawData is! Map<String, dynamic>) {
+      throw Exception('Join-data payload is missing.');
+    }
+
+    final joinMessage = _resolveJoinMessage(
+      key: (rawData['join_message_key'] ?? decoded['message_key'])?.toString(),
+      message: (rawData['join_message'] ?? decoded['message'])?.toString(),
+    );
+    if (mounted) {
+      setState(() {
+        _videoJoinMessage = joinMessage.trim().isNotEmpty ? joinMessage.trim() : null;
+      });
+    }
+
+    final normalizedProvider = _normalizeVideoProvider(
+      (rawData['provider'] ?? appointmentModel?.videoProvider ?? 'agora')
+          .toString(),
+    );
+
+    return VideoJoinData(
+      provider: normalizedProvider,
+      meetingLink: rawData['meeting_link']?.toString(),
+      meetingId: rawData['meeting_id']?.toString(),
+      appId: rawData['appId']?.toString(),
+      channelName: rawData['channelName']?.toString() ??
+          rawData['channel_name']?.toString(),
+      uid: _toInt(rawData['uid']),
+      token: rawData['token']?.toString(),
+      expiresAt: _toInt(rawData['expires_at']),
+      joinClosesAt: _toInt(rawData['join_closes_at']),
+      canOpenAgora: _toBool(rawData['can_open_agora']),
+      useApp: _toBool(rawData['use_app']) ?? (normalizedProvider == 'agora'),
+    );
+  }
+
+  String _normalizeVideoProvider(String raw) {
+    final value = raw.trim().toLowerCase();
+    if (value == 'google' ||
+        value == 'google_meet' ||
+        value == 'googlemeet' ||
+        value == 'meet') {
+      return 'google';
+    }
+    if (value == 'agora') return 'agora';
+    return value;
+  }
+
+  int? _toInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    return int.tryParse(value.toString());
+  }
+
+  bool? _toBool(dynamic value) {
+    if (value == null) return null;
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    final raw = value.toString().trim().toLowerCase();
+    if (raw == '1' || raw == 'true' || raw == 'yes' || raw == 'y') return true;
+    if (raw == '0' || raw == 'false' || raw == 'no' || raw == 'n') return false;
+    return null;
+  }
+
+  String _fallbackTranslationForKey(String key) {
+    switch (key) {
+      case 'video_join_google_ready':
+        return 'Google Meet listo. Abriendo enlace.';
+      case 'video_join_google_not_available_fallback_agora':
+        return 'Google Meet no está disponible ahora. Abriendo videollamada interna.';
+      case 'video_join_internal_ready':
+        return 'Videollamada interna lista.';
+      case 'video_join_not_video_consultation':
+        return 'Esta cita no es una videoconsulta.';
+      case 'video_join_payment_required':
+        return 'La cita debe estar pagada antes de entrar al video.';
+      case 'video_join_not_available':
+        return 'Esta cita no está disponible para videollamada.';
+      case 'video_join_prepare_failed':
+        return 'No se pudieron preparar los datos para entrar al video.';
+      case 'video_join_no_google_meet_link':
+        return 'No hay enlace de Google Meet disponible.';
+      case 'video_join_invalid_google_meet_link':
+        return 'El enlace de Google Meet no es válido.';
+      case 'video_join_cannot_open_google_meet':
+        return 'No se pudo abrir Google Meet.';
+      case 'video_join_invalid_video_link':
+        return 'El enlace de video no es válido.';
+      case 'video_join_cannot_open_video':
+        return 'No se pudo abrir la videollamada.';
+      case 'video_join_unsupported_provider':
+        return 'Proveedor de video no soportado.';
+      case 'video_join_consultation_title':
+        return 'Consulta por video';
+      default:
+        return key;
+    }
+  }
+
+  String _trKey(String key) {
+    final translated = key.tr;
+    if (translated == key) {
+      return _fallbackTranslationForKey(key);
+    }
+    return translated;
+  }
+
+  String _resolveJoinMessage({String? key, String? message}) {
+    final trimmedKey = key?.trim() ?? '';
+    if (trimmedKey.isNotEmpty) {
+      return _trKey(trimmedKey);
+    }
+
+    final trimmedMessage = message?.trim() ?? '';
+    if (trimmedMessage.isEmpty) return '';
+
+    final legacyMap = <String, String>{
+      'Google Meet ready. Opening meeting link.': 'video_join_google_ready',
+      'Google Meet is not available right now. Opening internal video call.': 'video_join_google_not_available_fallback_agora',
+      'Internal video call ready.': 'video_join_internal_ready',
+      'This appointment is not a video consultation.': 'video_join_not_video_consultation',
+      'Appointment must be paid before joining video.': 'video_join_payment_required',
+      'This appointment is not available for video call.': 'video_join_not_available',
+      'Could not prepare video join data.': 'video_join_prepare_failed',
+    };
+
+    final mappedKey = legacyMap[trimmedMessage];
+    if (mappedKey != null) {
+      return _trKey(mappedKey);
+    }
+
+    return trimmedMessage;
+  }
+
   Future<void> _handleVideoJoin() async {
     if (appointmentModel == null) return;
 
@@ -252,37 +446,89 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
     });
 
     try {
-      if (_isGoogleMeetProvider) {
-        final link = appointmentModel?.meetingLink?.trim() ?? '';
+      if (mounted) {
+        setState(() {
+          _videoJoinMessage = null;
+        });
+      }
+
+      final joinData = await _fetchDoctorVideoJoinData();
+
+      if (joinData.isGoogle) {
+        final link = (joinData.meetingLink ?? '').trim();
 
         if (link.isEmpty) {
-          IToastMsg.showMessage('No hay enlace de Google Meet disponible');
+          IToastMsg.showMessage(_trKey('video_join_no_google_meet_link'));
           return;
         }
 
         final uri = Uri.tryParse(link);
         if (uri == null) {
-          IToastMsg.showMessage('El enlace de Google Meet no es válido');
+          IToastMsg.showMessage(_trKey('video_join_invalid_google_meet_link'));
           return;
+        }
+
+        if ((_videoJoinMessage ?? '').trim().isNotEmpty) {
+          IToastMsg.showMessage(_videoJoinMessage!.trim());
         }
 
         final ok = await launchUrl(
           uri,
-          mode: LaunchMode.externalApplication,
+          mode: joinData.useApp
+              ? LaunchMode.externalApplication
+              : LaunchMode.platformDefault,
         );
 
         if (!ok) {
-          IToastMsg.showMessage('No se pudo abrir Google Meet');
+          IToastMsg.showMessage(_trKey('video_join_cannot_open_google_meet'));
         }
 
         return;
       }
 
-      await openAgoraCallWithCache(
-        appointmentId: appointmentModel!.id ?? 0,
-        isDoctor: true,
-        title: 'Consulta por video',
+      if (joinData.isAgora) {
+        final link = (joinData.meetingLink ?? '').trim();
+
+        if (!joinData.useApp && link.isNotEmpty) {
+          final uri = Uri.tryParse(link);
+          if (uri == null) {
+            IToastMsg.showMessage(_trKey('video_join_invalid_video_link'));
+            return;
+          }
+
+          if ((_videoJoinMessage ?? '').trim().isNotEmpty) {
+            IToastMsg.showMessage(_videoJoinMessage!.trim());
+          }
+
+          final ok = await launchUrl(
+            uri,
+            mode: LaunchMode.platformDefault,
+          );
+
+          if (!ok) {
+            IToastMsg.showMessage(_trKey('video_join_cannot_open_video'));
+          }
+          return;
+        }
+
+        if ((_videoJoinMessage ?? '').trim().isNotEmpty) {
+          IToastMsg.showMessage(_videoJoinMessage!.trim());
+        }
+
+        await openAgoraCallWithCache(
+          appointmentId: appointmentModel!.id ?? 0,
+          isDoctor: true,
+          title: _trKey('video_join_consultation_title'),
+          injectedJoinData: joinData,
+        );
+        return;
+      }
+
+      IToastMsg.showMessage(
+        '${_trKey('video_join_unsupported_provider')}: ${joinData.provider}',
       );
+    } catch (e) {
+      IToastMsg.showMessage(e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) {
         setState(() {
@@ -336,7 +582,7 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
         onPressed: null,
         child: Text(
           'appointmentDetails.availableIn'.trArgs([
-             _formatVideoCountdown(_videoRemainingSeconds)],
+            _formatVideoCountdown(_videoRemainingSeconds)],
           ),
           style: const TextStyle(fontSize: 12, color: Colors.white),
         ),
@@ -468,15 +714,32 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                 if (appointmentModel?.type == "Video Consultant")
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                      'appointmentDetails.autoCloseAt'.trArgs([
-                        _formatJoinCloseTime(),
-                      ]),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: ColorResources.secondaryFontColor,
-                        fontWeight: FontWeight.w500,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'appointmentDetails.autoCloseAt'.trArgs([
+                            _formatJoinCloseTime(),
+                          ]),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: ColorResources.secondaryFontColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        if ((_videoJoinMessage ?? '').trim().isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              _videoJoinMessage!.trim(),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.blueGrey,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
               ],

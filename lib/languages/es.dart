@@ -242,6 +242,20 @@ final Map<String, Map<String, String>> esKeys = {
     "view_all_btn": "Ver todo >",
     "whatsapp_value": "WhatsApp: @value",
     "write_prescription": "Escribir receta",
-    "yes": "Sí"
+    "yes": "Sí",
+    'video_join_google_ready': 'Google Meet listo. Abriendo enlace.',
+    'video_join_google_not_available_fallback_agora': 'Google Meet no está disponible ahora. Abriendo videollamada interna.',
+    'video_join_internal_ready': 'Videollamada interna lista.',
+    'video_join_not_video_consultation': 'Esta cita no es una videoconsulta.',
+    'video_join_payment_required': 'La cita debe estar pagada antes de entrar al video.',
+    'video_join_not_available': 'Esta cita no está disponible para videollamada.',
+    'video_join_prepare_failed': 'No se pudieron preparar los datos para entrar al video.',
+    'video_join_no_google_meet_link': 'No hay enlace de Google Meet disponible.',
+    'video_join_invalid_google_meet_link': 'El enlace de Google Meet no es válido.',
+    'video_join_cannot_open_google_meet': 'No se pudo abrir Google Meet.',
+    'video_join_invalid_video_link': 'El enlace de video no es válido.',
+    'video_join_cannot_open_video': 'No se pudo abrir la videollamada.',
+    'video_join_unsupported_provider': 'Proveedor de video no soportado.',
+    'video_join_consultation_title': 'Consulta por video'
   }
 };
