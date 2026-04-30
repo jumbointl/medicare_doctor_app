@@ -9,12 +9,22 @@ class TimeSlotsController extends GetxController {
   var isError = false.obs;
 
 
-  void getData(String doctId,String day,String slotType) async {
+  void getData(
+    String doctId,
+    String day,
+    String slotType, {
+    String? clinicId,
+  }) async {
     isLoading(true);
     try {
-      final getDataList = await TimeSlotsService.getData(doctId: doctId,day: day,slotType: slotType);
+      final getDataList = await TimeSlotsService.getData(
+        doctId: doctId,
+        day: day,
+        slotType: slotType,
+        clinicId: clinicId,
+      );
 
-      if (getDataList !=null) {
+      if (getDataList != null) {
         isError(false);
         dataList.value = getDataList;
       } else {

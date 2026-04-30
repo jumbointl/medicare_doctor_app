@@ -36,10 +36,20 @@ class ApiContents{
   static const appointmentRejectUrl="$baseApiUrl/appointment_reject_and_refund";
   static const appointmentCancelUrl="$baseApiUrl/appointment_cancellation_and_refund";
 
+  //Appointment Reschedule Request
+  static const getRescheduleRequestsByAppIdUrl="$baseApiUrl/get_appointment_reschedule_requests";
+  static const getInitiatedRescheduleRequestsUrl="$baseApiUrl/get_initiated_reschedule_requests";
+  static const rescheduleRequestApproveUrl="$baseApiUrl/appointment_reschedule_request_approve";
+  static const rescheduleRequestRejectUrl="$baseApiUrl/appointment_reschedule_request_reject";
+  static const rescheduleRequestAddUrl="$baseApiUrl/appointment_reschedule_request";
+  static const rescheduleRequestDeleteUrl="$baseApiUrl/delete_appointment_reschedule_request";
 
-  //Time Slots
-  static const getTimeSlotsUrl="$baseApiUrl/get_doctor_time_interval";
-  static const getVideoTimeSlotsUrl="$baseApiUrl/get_doctor_video_time_interval";
+
+  //Time Slots — nested resource URLs are built dynamically in TimeSlotsService.
+  // Pattern: $baseApiUrl/doctors/{doctorId}/clinics/{clinicId}/{time-slots|time-interval/{day}|video-time-slots|video-time-interval/{day}}
+  //
+  // NOTE: get_booked_time_slots stays on the legacy flat URL with `doct_id`
+  // query param — backend ownership prevents renaming the column right now.
   static const getBookedTimeSlotsUrl="$baseApiUrl/get_booked_time_slots";
 
   //Dashboard
@@ -70,6 +80,9 @@ class ApiContents{
 
   //Doctors
   static const getDoctorsUrl="$baseApiUrl/get_doctor";
+  static const updateDoctorUrl="$baseApiUrl/update_doctor";
+  static const removeDoctorImageUrl="$baseApiUrl/remove_doctor_image";
+  static const updateDoctorClinicStatusUrl="$baseApiUrl/update_doctor_clinic_status";
 
   //Notification
   static const getUserNotificationUrl="$baseApiUrl/get_doctor_notification/doctor";

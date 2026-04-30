@@ -608,7 +608,7 @@ class _AddPrescriptionPageState extends State<AddPrescriptionPage> {
         }, icon: const Icon(Icons.delete,
         color: Colors.redAccent,
         )),
-        title: Text("${index+1} - ${medication.medicineName}",
+        title: Text("item_index_name".trArgs(["${index+1}", medication.medicineName ?? ""]),
           style: const TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w500

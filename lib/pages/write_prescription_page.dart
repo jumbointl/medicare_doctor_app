@@ -467,7 +467,7 @@ class _WritePrescriptionPageState extends State<WritePrescriptionPage> {
                                   } catch (e) {
                                     if (context.mounted) {
                                       ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('Failed to load image: $e')),
+                                        SnackBar(content: Text("failed_to_load_image".trParams({"error": "$e"}))),
                                       );
                                     }
                                   } finally {

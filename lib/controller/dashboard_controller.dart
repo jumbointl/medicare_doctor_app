@@ -9,10 +9,14 @@ class DashboardController extends GetxController {
   var isError = false.obs;
 
 
-  void getData() async {
+  void getData({int? clinicId, String? from, String? to}) async {
     isLoading(true);
     try {
-      final getData = await DashboardService.getData();
+      final getData = await DashboardService.getData(
+        clinicId: clinicId,
+        from: from,
+        to: to,
+      );
 
       if (getData !=null) {
         isError(false);

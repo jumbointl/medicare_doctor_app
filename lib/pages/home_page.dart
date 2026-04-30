@@ -19,6 +19,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
 import 'package:pull_to_refresh_flutter3/pull_to_refresh_flutter3.dart';
 import '../controller/appointment_controller.dart';
+import '../controller/my_clinics_controller.dart';
 import '../controller/notification_dot_controller.dart';
 import '../model/appointment_model.dart';
 import '../service/notification_seen_service.dart';
@@ -26,6 +27,9 @@ import '../utilities/colors_constant.dart';
 import '../utilities/sharedpreference_constants.dart';
 import '../widget/drawer_widget.dart';
 import '../widget/image_box_widget.dart';
+import '../widget/appointment_tab_view.dart';
+import '../widget/doctor_profile_per_clinic_form.dart';
+import '../widget/doctor_profile_personal_form.dart';
 import '../widget/loading_Indicator_widget.dart';
 import 'package:star_rating/star_rating.dart';
 
@@ -38,8 +42,17 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   bool _isLoading=false;
+  String _userId = '';
   AppointmentController appointmentController=Get.put(AppointmentController());
   DashboardController dashboardController=Get.put(DashboardController());
+  final MyClinicsController myClinicsController = Get.put(MyClinicsController());
+  Worker? _clinicSelectionWorker;
+  Worker? _dashboardClinicWorker;
+
+  /// Active range filter on the Dashboard tab.
+  _DashRange _dashRange = _DashRange.today;
+  DateTime? _dashCustomFrom;
+  DateTime? _dashCustomTo;
   final ScrollController _scrollController=ScrollController();
   RefreshController refreshController=RefreshController();
   UserModel? userModel;
@@ -88,15 +101,163 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadInitialData() async {
     getAdnSetData();
-    appointmentController.getData();
-    dashboardController.getData();
+
+    final prefs = await SharedPreferences.getInstance();
+    final uid = prefs.getString(SharedPreferencesConstants.uid) ?? '-1';
+    if (mounted) {
+      setState(() {
+        _userId = uid;
+      });
+    } else {
+      _userId = uid;
+    }
+    await myClinicsController.loadForUser(uid);
+
+    // Refetch appointments whenever the user picks a different clinic.
+    _clinicSelectionWorker?.dispose();
+    _clinicSelectionWorker = ever(
+      myClinicsController.selectedClinicId,
+      (_) => _refetchAppointments(),
+    );
+
+    // Refetch dashboard whenever the clinic selection changes.
+    _dashboardClinicWorker?.dispose();
+    _dashboardClinicWorker = ever(
+      myClinicsController.selectedClinicId,
+      (_) => _refetchDashboard(),
+    );
+
+    _refetchAppointments();
+    _refetchDashboard();
+  }
+
+  void _refetchDashboard() {
+    final selected = myClinicsController.selectedClinicId.value;
+    final range = _resolveDashRange();
+    dashboardController.getData(
+      clinicId: selected,
+      from: range.fromIso,
+      to: range.toIso,
+    );
+  }
+
+  _DashRangeResolved _resolveDashRange() {
+    final now = DateTime.now();
+    String fmt(DateTime d) =>
+        '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    switch (_dashRange) {
+      case _DashRange.today:
+        final today = fmt(now);
+        return _DashRangeResolved(today, today);
+      case _DashRange.week:
+        final monday = now.subtract(Duration(days: now.weekday - 1));
+        final sunday = monday.add(const Duration(days: 6));
+        return _DashRangeResolved(fmt(monday), fmt(sunday));
+      case _DashRange.month:
+        final firstDay = DateTime(now.year, now.month, 1);
+        final lastDay = DateTime(now.year, now.month + 1, 0);
+        return _DashRangeResolved(fmt(firstDay), fmt(lastDay));
+      case _DashRange.custom:
+        final from = _dashCustomFrom == null ? null : fmt(_dashCustomFrom!);
+        final to = _dashCustomTo == null ? null : fmt(_dashCustomTo!);
+        return _DashRangeResolved(from, to);
+      case _DashRange.all:
+        return const _DashRangeResolved(null, null);
+    }
+  }
+
+  Widget _buildDashboardRangeFilter() {
+    Widget chip(_DashRange r, String label) {
+      final selected = _dashRange == r;
+      return Padding(
+        padding: const EdgeInsets.only(right: 6),
+        child: ChoiceChip(
+          label: Text(
+            label,
+            style: TextStyle(
+              color: selected ? Colors.white : Colors.black87,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          selected: selected,
+          // Match the rest of the app: solid brand colour + white text when
+          // selected, light grey background otherwise.
+          backgroundColor: Colors.grey.shade200,
+          selectedColor: ColorResources.appBarColor,
+          showCheckmark: false,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(
+              color: selected
+                  ? ColorResources.appBarColor
+                  : Colors.grey.shade300,
+            ),
+          ),
+          onSelected: (_) async {
+            if (r == _DashRange.custom) {
+              final picked = await showDateRangePicker(
+                context: context,
+                firstDate: DateTime(2020),
+                lastDate: DateTime(2100),
+                initialDateRange: _dashCustomFrom != null && _dashCustomTo != null
+                    ? DateTimeRange(
+                        start: _dashCustomFrom!,
+                        end: _dashCustomTo!,
+                      )
+                    : null,
+              );
+              if (picked == null) return;
+              setState(() {
+                _dashCustomFrom = picked.start;
+                _dashCustomTo = picked.end;
+                _dashRange = _DashRange.custom;
+              });
+            } else {
+              setState(() => _dashRange = r);
+            }
+            _refetchDashboard();
+          },
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          chip(_DashRange.today, "tab_today".tr),
+          chip(_DashRange.week, "this_week".tr),
+          chip(_DashRange.month, "this_month".tr),
+          chip(_DashRange.custom, "custom".tr),
+          chip(_DashRange.all, "all".tr),
+        ],
+      ),
+    );
+  }
+
+  void _refetchAppointments() {
+    final selected = myClinicsController.selectedClinicId.value;
+    final allCsv = myClinicsController.allClinicIdsCsv;
+    appointmentController.getData(
+      0,
+      20,
+      selected?.toString(),
+      selected == null && allCsv.isNotEmpty ? allCsv : null,
+    );
   }
 
 
   void _onRefresh() async{
     refreshController.refreshCompleted();
-    appointmentController.getData();
-    dashboardController.getData();
+    _refetchAppointments();
+    _refetchDashboard();
+  }
+
+  /// Async variant used by the new tabs (AppointmentTabView). Awaits the
+  /// fetches so the SmartRefresher inside each tab can complete its spinner.
+  Future<void> _onRefreshAsync() async {
+    _refetchAppointments();
+    _refetchDashboard();
   }
   Future<bool> _isGoogleLoginExpired() async {
     final prefs = await SharedPreferences.getInstance();
@@ -127,7 +288,10 @@ class _HomePageState extends State<HomePage> {
   }
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return DefaultTabController(
+      length: 5,
+      initialIndex: 0,
+      child: Scaffold(
       drawer: IDrawerWidget().buildDrawerWidget(userModel,_notificationDotController),
       appBar: AppBar(
         iconTheme: const IconThemeData(
@@ -135,7 +299,8 @@ class _HomePageState extends State<HomePage> {
         ),
         centerTitle: true,
         backgroundColor: ColorResources.appBarColor,
-        title:  Text("doctor".tr,
+        title:  Text(
+          "${"doctor".tr} ${userModel?.lName ?? ''}".trim(),
           style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w500,
@@ -165,218 +330,303 @@ class _HomePageState extends State<HomePage> {
         )
 
         )],
+        bottom: TabBar(
+          isScrollable: true,
+          indicatorColor: Colors.white,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          tabs: [
+            Tab(icon: const Icon(Icons.today), text: "tab_today".tr),
+            Tab(icon: const Icon(Icons.history), text: "tab_past".tr),
+            Tab(icon: const Icon(Icons.schedule), text: "tab_future".tr),
+            Tab(icon: const Icon(Icons.person), text: "tab_profile".tr),
+            Tab(icon: const Icon(Icons.dashboard), text: "tab_dashboard".tr),
+          ],
+        ),
       ),
       backgroundColor: ColorResources.bgColor,
-      body: _isLoading?const ILoadingIndicatorWidget():SmartRefresher(
-        enablePullDown: true,
-        enablePullUp: false,
-        header: null,
-        footer: null,
-        controller: refreshController,
-        onRefresh: _onRefresh,
-        onLoading: null,
-        child: ListView(
-          controller: _scrollController,
-          padding: const EdgeInsets.all(8),
-          children:  [
-            Card(
-              elevation: 1,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)
-              ),
-              color: ColorResources.cardBgColor,
-              child:  Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text("hello!".tr,
-                              style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500
-                              ),
-                            ),
-                            const SizedBox(width: 5),
-                            GestureDetector(
-                              onTap: (){
-                                Get.toNamed(RouteHelper.getNotificationPageRoute());
-                              },
-                              child: Stack(
-                                clipBehavior: Clip.none,
-                                children: [
-                                  const CircleAvatar(
-                                    backgroundColor: Colors.white,
-                                    radius: 18,
-                                    child: Icon(Icons.notifications_none,
-                                      size: 25,),
-                                  ),
-                                  Obx((){
-                                    return _notificationDotController.isShow.value? const Positioned(
-                                      top:5,
-                                      right: 7,
-                                      child: Icon(Icons.circle,
-                                        color: Colors.red,
-                                        size: 12,
-                                      ),
-                                    ):Container();
-                                  })
-
-
-                                ],
-                              ),
-                            )
-                          ],
-                        ),
-                        const SizedBox(height: 5),
-                        Text(userModel?.fName??"",
-                          style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500
-                          ),),
-                        const SizedBox(height: 5),
-                        Row(
-                          children: [
-                            StarRating(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              length: 5,
-                              color:  doctorsModel?.averageRating==0?Colors.grey:Colors.amber,
-                              rating: doctorsModel?.averageRating??0,
-                              between: 5,
-                              starSize: 15,
-                              onRaitingTap: (rating) {
-                              },
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'rating_review_text'.trParams({
-                            'rating': '${doctorsModel?.averageRating ?? "--"}',
-                            'count': '${doctorsModel?.numberOfReview ?? 0}',
-                          }),
-                          style:const TextStyle(
-                              color: ColorResources.secondaryFontColor,
-                              fontWeight: FontWeight.w500,
-                              fontSize: 12
-                          ),)
-                      ],
-                    ),
-                    SizedBox(
-                      height: 70,
-                      width: 70,
-                      child: ClipOval(
-                          child:
-                          userModel?.imageUrl==null||userModel?.imageUrl==""?
-                          const Icon(Icons.person,
-                            size: 50,):
-                          ImageBoxFillWidget(imageUrl:"${ApiContents.imageUrl}/${userModel?.imageUrl}") ),
-                    ),
-                  ],
+      bottomNavigationBar: Obx(() {
+        final clinics = myClinicsController.clinics;
+        if (clinics.isEmpty) return const SizedBox.shrink();
+        return SafeArea(
+          top: false,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 4,
+                  offset: Offset(0, -2),
                 ),
-              ),
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildFeeCard("OPD".tr,doctorsModel?.opdFee.toString()??"0",doctorsModel?.clinicAppointment??0),
-                _buildFeeCard("Video".tr,doctorsModel?.videoFee.toString()??"0",doctorsModel?.videoAppointment??0),
-                _buildFeeCard("Emergency".tr,doctorsModel?.emgFee.toString()??"0",doctorsModel?.emergencyAppointment??0),
               ],
             ),
-            Obx(() {
-              if (!dashboardController.isError.value) { // if no any error
-                if (dashboardController.isLoading.value) {
-                  return const Padding(
-                    padding: EdgeInsets.all(8.0),
-                    child: ILoadingIndicatorWidget(),
-                  );
-                } else {
-                  DashboardModel dashboardModel=dashboardController.dataModel.value;
-                  return Column(
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.local_hospital,
+                  color: ColorResources.appBarColor,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  "${"clinic".tr}:",
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<int?>(
+                      isExpanded: true,
+                      value: myClinicsController.selectedClinicId.value,
+                      items: [
+                        if (clinics.length > 1)
+                          DropdownMenuItem<int?>(
+                            value: null,
+                            child: Text("all_clinics".tr),
+                          ),
+                        ...clinics.map(
+                          (c) => DropdownMenuItem<int?>(
+                            value: c.clinicId,
+                            child: Text(
+                              c.clinicTitle ?? '#${c.clinicId}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        myClinicsController.setSelection(value);
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }),
+      body: _isLoading
+          ? const ILoadingIndicatorWidget()
+          : TabBarView(
+              children: [
+                AppointmentTabView(
+                  controller: appointmentController,
+                  mode: AppointmentMode.today,
+                  cardBuilder: _card,
+                  onRefresh: _onRefreshAsync,
+                ),
+                AppointmentTabView(
+                  controller: appointmentController,
+                  mode: AppointmentMode.past,
+                  cardBuilder: _card,
+                  onRefresh: _onRefreshAsync,
+                ),
+                AppointmentTabView(
+                  controller: appointmentController,
+                  mode: AppointmentMode.future,
+                  cardBuilder: _card,
+                  onRefresh: _onRefreshAsync,
+                ),
+                _buildProfileTab(),
+                _buildDashboardTab(),
+              ],
+            ),
+    ));
+  }
+
+  Widget _buildProfileTab() {
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          Material(
+            color: Colors.white,
+            child: TabBar(
+              labelColor: ColorResources.appBarColor,
+              unselectedLabelColor: Colors.black54,
+              indicatorColor: ColorResources.appBarColor,
+              tabs: [
+                Tab(text: "tab_personal".tr),
+                Tab(text: "tab_per_clinic".tr),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                DoctorProfilePersonalForm(
+                  userModel: userModel,
+                  doctorsModel: doctorsModel,
+                  onChanged: () {
+                    getAdnSetData();
+                  },
+                ),
+                DoctorProfilePerClinicForm(
+                  doctorId: doctorsModel?.id ?? 0,
+                  userId: _userId,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDashboardTab() {
+    return SmartRefresher(
+      enablePullDown: true,
+      enablePullUp: false,
+      header: null,
+      footer: null,
+      controller: refreshController,
+      onRefresh: _onRefresh,
+      onLoading: null,
+      child: ListView(
+        controller: _scrollController,
+        padding: const EdgeInsets.all(8),
+        children:  [
+          Card(
+            elevation: 1,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10)
+            ),
+            color: ColorResources.cardBgColor,
+            child:  Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          buildCard("appointment".tr,dashboardModel.totalAppointments?.toString()??"0",ImageConstants.totalAppointmentImage,Colors.green),
-                          buildCard("today".tr,dashboardModel.totalTodayAppointment?.toString()??"0",ImageConstants.todayImage,Colors.orange),
+                          Text("hello!".tr,
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          GestureDetector(
+                            onTap: (){
+                              Get.toNamed(RouteHelper.getNotificationPageRoute());
+                            },
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                const CircleAvatar(
+                                  backgroundColor: Colors.white,
+                                  radius: 18,
+                                  child: Icon(Icons.notifications_none,
+                                    size: 25,),
+                                ),
+                                Obx((){
+                                  return _notificationDotController.isShow.value? const Positioned(
+                                    top:5,
+                                    right: 7,
+                                    child: Icon(Icons.circle,
+                                      color: Colors.red,
+                                      size: 12,
+                                    ),
+                                  ):Container();
+                                })
+                              ],
+                            ),
+                          )
                         ],
                       ),
+                      const SizedBox(height: 5),
+                      Text(userModel?.fName??"",
+                        style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500
+                        ),),
+                      const SizedBox(height: 5),
                       Row(
                         children: [
-                          buildCard("pending".tr,dashboardModel.totalPendingAppointment?.toString()??"0",ImageConstants.pendingImage,Colors.yellow),
-                          buildCard("cancelled".tr,dashboardModel.totalCancelledAppointment?.toString()??"0",ImageConstants.cancelledImage,Colors.redAccent),
+                          StarRating(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            length: 5,
+                            color:  doctorsModel?.averageRating==0?Colors.grey:Colors.amber,
+                            rating: doctorsModel?.averageRating??0,
+                            between: 5,
+                            starSize: 15,
+                            onRaitingTap: (rating) {
+                            },
+                          ),
                         ],
-
                       ),
-                      Row(
-                        children: [
-                          buildCard("confirmed".tr,dashboardModel.totalConfirmedAppointment?.toString()??"0",ImageConstants.confirmedImage,Colors.green),
-                          buildCard("rejected".tr,dashboardModel.totalRejectedAppointment?.toString()??"0",ImageConstants.rejectedImage,Colors.redAccent),
-                        ],
-
-                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'rating_review_text'.trParams({
+                          'rating': '${doctorsModel?.averageRating ?? "--"}',
+                          'count': '${doctorsModel?.numberOfReview ?? 0}',
+                        }),
+                        style:const TextStyle(
+                            color: ColorResources.secondaryFontColor,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 12
+                        ),)
                     ],
-                  );
-                }
-
-
-              }else {
-                return  Container();
-              } //Error svg
-            }
-            ),
-
-
-            Card(
-              color: ColorResources.cardBgColor,
-              elevation: .1,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15)
-              ),
-              child: ListTile(
-                trailing: TextButton(
-                    onPressed: (){
-                      Get.toNamed(RouteHelper.getAppointmentPageRoute());
-                    },
-                    child:  Text("view_all_btn".tr,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w500,
-                      ),
-                    )),
-                title:  Text("last_20_appointments".tr,
-                  style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500
-                  ),),
+                  ),
+                  SizedBox(
+                    height: 70,
+                    width: 70,
+                    child: ClipOval(
+                        child:
+                        userModel?.imageUrl==null||userModel?.imageUrl==""?
+                        const Icon(Icons.person,
+                          size: 50,):
+                        ImageBoxFillWidget(imageUrl:"${ApiContents.imageUrl}/${userModel?.imageUrl}") ),
+                  ),
+                ],
               ),
             ),
-            Obx(() {
-              if (!appointmentController.isError.value) { // if no any error
-                if (appointmentController.isLoading.value) {
-                  return const IVerticalListLongLoadingWidget();
-                } else if (appointmentController.dataList.isEmpty) {
-                  return  Text("no_appointment_found".tr,
-                    style: TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14
+          ),
+          const SizedBox(height: 8),
+          _buildDashboardRangeFilter(),
+          const SizedBox(height: 8),
+          Obx(() {
+            if (!dashboardController.isError.value) {
+              if (dashboardController.isLoading.value) {
+                return const Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: ILoadingIndicatorWidget(),
+                );
+              } else {
+                DashboardModel dashboardModel=dashboardController.dataModel.value;
+                return Column(
+                  children: [
+                    Row(
+                      children: [
+                        buildCard("appointment".tr,dashboardModel.totalAppointments?.toString()??"0",ImageConstants.totalAppointmentImage,Colors.green),
+                        buildCard("today".tr,dashboardModel.totalTodayAppointment?.toString()??"0",ImageConstants.todayImage,Colors.orange),
+                      ],
                     ),
-                  );
-                }
-                else {
-                  return
-                    buildAppointmentList(appointmentController.dataList);
-
-                }
-              }else {
-                return   Container();
-              } //Error svg
-            })
-          ],
-        ),
+                    Row(
+                      children: [
+                        buildCard("pending".tr,dashboardModel.totalPendingAppointment?.toString()??"0",ImageConstants.pendingImage,Colors.yellow),
+                        buildCard("cancelled".tr,dashboardModel.totalCancelledAppointment?.toString()??"0",ImageConstants.cancelledImage,Colors.redAccent),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        buildCard("confirmed".tr,dashboardModel.totalConfirmedAppointment?.toString()??"0",ImageConstants.confirmedImage,Colors.green),
+                        buildCard("rejected".tr,dashboardModel.totalRejectedAppointment?.toString()??"0",ImageConstants.rejectedImage,Colors.redAccent),
+                      ],
+                    ),
+                  ],
+                );
+              }
+            } else {
+              return Container();
+            }
+          }),
+        ],
       ),
     );
   }
@@ -440,6 +690,75 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
+  @override
+  void dispose() {
+    _clinicSelectionWorker?.dispose();
+    _dashboardClinicWorker?.dispose();
+    super.dispose();
+  }
+
+  Widget _buildClinicSelector() {
+    return Obx(() {
+      if (myClinicsController.isLoading.value) {
+        return const SizedBox.shrink();
+      }
+      final clinics = myClinicsController.clinics;
+      if (clinics.isEmpty) return const SizedBox.shrink();
+      // No combo when only one clinic — just show its name read-only.
+      if (clinics.length == 1) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Row(
+            children: [
+              const Icon(Icons.local_hospital, size: 16, color: Colors.grey),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  clinics.first.clinicTitle ?? '-',
+                  style: const TextStyle(fontSize: 13, color: Colors.grey),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+      final selected = myClinicsController.selectedClinicId.value;
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: Row(
+          children: [
+            const Icon(Icons.local_hospital, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: DropdownButton<int?>(
+                isExpanded: true,
+                value: selected,
+                items: <DropdownMenuItem<int?>>[
+                  DropdownMenuItem<int?>(
+                    value: null,
+                    child: Text("All clinics".tr),
+                  ),
+                  for (final c in clinics)
+                    DropdownMenuItem<int?>(
+                      value: c.clinicId,
+                      child: Text(
+                        c.clinicTitle ?? '-',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+                onChanged: (v) async {
+                  await myClinicsController.setSelection(v);
+                },
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
   ListView buildAppointmentList(dataList){
     return  ListView.builder(
         controller: _scrollController,
@@ -789,5 +1108,13 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+}
+
+enum _DashRange { today, week, month, custom, all }
+
+class _DashRangeResolved {
+  final String? fromIso;
+  final String? toIso;
+  const _DashRangeResolved(this.fromIso, this.toIso);
 }
 

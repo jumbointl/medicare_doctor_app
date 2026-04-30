@@ -127,11 +127,50 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
     );
   }
 
+  /// Stubbed call-the-patient action. The real queueing/notification logic
+  /// will live in `_callQueue` once the backend endpoint is available; for
+  /// now we just show a placeholder toast so the doctor sees the button is
+  /// wired up.
+  void _callQueue() {
+    // TODO: replace with the real call-queue API once defined. Probably
+    // POST /api/v1/queue/call with appointment_id; will trigger the
+    // patient's display / push notification.
+    IToastMsg.showMessage("call".tr);
+  }
+
+  Widget _buildCallButton() {
+    final status = appointmentModel?.status ?? '';
+    // Don't show the call button for closed appointments.
+    if (status == 'Rejected' ||
+        status == 'Cancelled' ||
+        status == 'Visited' ||
+        status == 'Completed') {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: ElevatedButton.icon(
+        onPressed: _callQueue,
+        icon: const Icon(Icons.notifications_active),
+        label: Text(
+          "call".tr,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.indigo,
+          foregroundColor: Colors.white,
+          minimumSize: const Size(double.infinity, 48),
+        ),
+      ),
+    );
+  }
+
   ListView _buildBody() {
     return ListView(
       controller: _scrollController,
       padding: const EdgeInsets.all(5),
       children: [
+        _buildCallButton(),
         buildOpDetails(),
         const SizedBox(height: 10),
         Padding(
@@ -144,6 +183,8 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
         ),
         _buildPaymentCard(),
         const SizedBox(height: 10),
+        _buildRescheduleButton(),
+        const SizedBox(height: 6),
         _buildCancellationBox(),
         Obx(() {
           return _appointmentCancellationController.dataList.isNotEmpty
@@ -205,7 +246,6 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
         (appointmentModel?.paymentStatus != 'Paid')) {
       return;
     }
-
     if ((appointmentModel?.canJoinVideo ?? false) ||
         _videoRemainingSeconds <= 0) {
       _videoRemainingSeconds = 0;
@@ -261,9 +301,11 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
 
     final userId = await _getCurrentUserId();
     final token = await _getAuthToken();
+    String url = '${ApiContents.baseApiUrl}/doctor-web/appointments/$appointmentId/video/join-data';
+    debugPrint('VIDEO JOIN URL: $url');
 
     final uri = Uri.parse(
-      '${ApiContents.baseApiUrl}/api/v1/doctor-web/appointments/$appointmentId/video/join-data',
+      url,
     );
 
     final headers = <String, String>{
@@ -1469,6 +1511,30 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
     });
   }
 
+  Widget _buildRescheduleButton() {
+    if (appointmentModel == null) return const SizedBox.shrink();
+    final status = appointmentModel?.status;
+    if (['Cancelled', 'Rejected', 'Visited', 'Completed'].contains(status)) {
+      return const SizedBox.shrink();
+    }
+    return Card(
+      elevation: .1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5.0)),
+      child: ListTile(
+        onTap: _openBottomSheetAppointmentStatus,
+        trailing: const Icon(Icons.arrow_right),
+        title: Text(
+          "reschedule".tr,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+        ),
+        subtitle: Text(
+          "reschedule_subtitle".tr,
+          style: const TextStyle(fontSize: 13),
+        ),
+      ),
+    );
+  }
+
   void _handleUpdateStatusToCancel() async {
     setState(() {
       _isLoading = true;
@@ -1477,6 +1543,17 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
       appointmentId: appointmentModel?.id.toString() ?? "",
     );
     if (res != null) {
+      if (res is Map && res['redirect_to_reschedule'] == true) {
+        IToastMsg.showMessage(
+          (res['reason']?.toString() ?? "card_refund_manual".tr),
+        );
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+        });
+        Get.until((route) => route.isFirst);
+        return;
+      }
       IToastMsg.showMessage("success".tr);
       _appointmentCancellationController.getData(
         appointmentId: widget.appId ?? "-1",
@@ -1828,11 +1905,13 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
               appointmentModel?.doctorId.toString() ?? "",
               DateTimeHelper.getDayName(dateParse.weekday),
               appointmentModel?.type == "Video Consultant" ? "2" : "1",
+              clinicId: appointmentModel?.clinicId?.toString(),
             );
             _bookedTimeSlotsController.getData(
               appointmentModel?.doctorId.toString() ?? "",
               _selectedDate,
               appointmentModel?.type ?? "",
+              clinicId: appointmentModel?.clinicId?.toString(),
             );
           });
         },

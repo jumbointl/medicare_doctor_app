@@ -12,10 +12,26 @@ class DashboardService{
 
     return List<DashboardModel>.from(jsonDecodedData.map((item)=>DashboardModel.fromJson(item)));
   }
-  static Future <DashboardModel?> getData()async {
+  /// GET /get_dashboard_count/doctor/{uid}?clinic_id=&from=&to=
+  ///
+  /// All filters are optional. When [clinicId] is null the backend counts
+  /// across every clinic the doctor belongs to. [from] and [to] are
+  /// inclusive yyyy-MM-dd bounds on `appointments.date`.
+  static Future <DashboardModel?> getData({
+    int? clinicId,
+    String? from,
+    String? to,
+  }) async {
     SharedPreferences preferences=await  SharedPreferences.getInstance();
     final uid= preferences.getString(SharedPreferencesConstants.uid)??"-1";
-    final res=await GetService.getReq("$getUrl/$uid");
+
+    final qs = <String>[];
+    if (clinicId != null) qs.add('clinic_id=$clinicId');
+    if (from != null && from.isNotEmpty) qs.add('from=$from');
+    if (to != null && to.isNotEmpty) qs.add('to=$to');
+
+    final url = qs.isEmpty ? "$getUrl/$uid" : "$getUrl/$uid?${qs.join('&')}";
+    final res=await GetService.getReq(url);
     if(res==null) {
       return null;
     } else {

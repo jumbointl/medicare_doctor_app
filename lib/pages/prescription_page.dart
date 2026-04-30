@@ -114,7 +114,7 @@ bool _isLoading=false;
         elevation: .1,
         child: ListTile(
 
-          title: Text("${prescriptionModel.patientFName} ${prescriptionModel.patientLName}",
+          title: Text("full_name".trArgs([prescriptionModel.patientFName ?? "", prescriptionModel.patientLName ?? ""]),
           style: const TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w500

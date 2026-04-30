@@ -19,16 +19,24 @@ class AppointmentService{
 
   static Future <List<AppointmentModel>?> getData({required int start,
   required int end,
-    String search=""
+    String search="",
+    String? clinicId,
+    String? clinicIds,
   })async {
     SharedPreferences preferences=await  SharedPreferences.getInstance();
     final uid= preferences.getString(SharedPreferencesConstants.uid)??"-1";
-   final body={
+   final body=<String, dynamic>{
       "start":start.toString(),
        "end":end.toString(),
        "doctor_id":uid,
      "search":search
     };
+    // clinic_ids takes precedence over clinic_id (matches backend logic).
+    if (clinicIds != null && clinicIds.isNotEmpty) {
+      body['clinic_ids'] = clinicIds;
+    } else if (clinicId != null && clinicId.isNotEmpty) {
+      body['clinic_id'] = clinicId;
+    }
     final res=await GetService.getReqWithBody(getAppointmentUrl,body);
     if(res==null) {
       return null;

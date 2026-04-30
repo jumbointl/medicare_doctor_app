@@ -401,7 +401,7 @@ class _LoginPageState extends State<LoginPage> {
                                   )),
                             ),
                             const SizedBox(height: 20),
-                            Text("or"),
+                            Text("or".tr),
                             const SizedBox(height: 20),
                             InputLabel.buildLabelBox("email".tr),
                             const SizedBox(height: 10),
@@ -489,11 +489,24 @@ class _LoginPageState extends State<LoginPage> {
     if(resLogin!=null){
       String? token=resLogin['token'];
       String? uid=resLogin['data']['id']?.toString();
-      List? role=resLogin['data']['role'];
+      // The API exposes role data in three shapes depending on version:
+      //   data.roles      = ["Doctor", ...]                 (new)
+      //   data.role.all   = ["Doctor", ...]                 (new normalized)
+      //   data.role       = [{"name": "Doctor"}, ...]       (legacy)
+      // Accept any of them.
+      final rolesData = resLogin['data']['roles']
+          ?? (resLogin['data']['role'] is Map
+              ? resLogin['data']['role']['all']
+              : resLogin['data']['role']);
+      List? role;
+      if (rolesData is List) {
+        role = rolesData;
+      }
       bool assignedRole=false;
       if(role!=null){
         for(var e in role){
-          if(e['name']=="Doctor"){
+          final name = e is Map ? e['name']?.toString() : e?.toString();
+          if(name == "Doctor"){
             assignedRole=true;
             break;
           }

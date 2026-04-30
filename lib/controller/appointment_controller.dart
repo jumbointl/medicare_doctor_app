@@ -8,12 +8,22 @@ class AppointmentController extends GetxController {
   var isError = false.obs;
 
 
-  void getData([int start=0,int end=20]) async {
+  void getData([
+    int start = 0,
+    int end = 20,
+    String? clinicId,
+    String? clinicIds,
+  ]) async {
     isLoading(true);
     try {
-      final getDataList = await AppointmentService.getData(start: start,end: end);
+      final getDataList = await AppointmentService.getData(
+        start: start,
+        end: end,
+        clinicId: clinicId,
+        clinicIds: clinicIds,
+      );
 
-      if (getDataList !=null) {
+      if (getDataList != null) {
         isError(false);
         dataList.value = getDataList;
       } else {
