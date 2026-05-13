@@ -2,7 +2,9 @@ class ApiContents{
 
  // static const webApiUrl="http://192.168.1.38:8000";
 
-  static const webApiUrl="https://pay.solexpresspy.com";
+  // Migrado a Node 2026-05-10. Laravel pay.solexpresspy.com queda
+  // deprecado para doctor-app.
+  static const webApiUrl="https://medicare.solexpresspy.com";
   //API_BASE_URLcd
   static const baseApiUrl="$webApiUrl/api/v1";
   static const imageUrl="$webApiUrl/public/storage";
@@ -14,12 +16,25 @@ class ApiContents{
   //Login
   static const loginUrl="$baseApiUrl/login";
   static const loginOutUrl="$baseApiUrl/logout";
+  static const refreshDynamicKeyUrl="$baseApiUrl/refresh-dynamic-key";
+  // Refresh-token Fase 2 (2026-05-13). POST con `refresh_token` en body;
+  // server devuelve nuevo session-JWT (+ rota refresh_token + opcional
+  // dynamic_key). Ver refresh_session.dart.
+  static const refreshSessionUrl="$baseApiUrl/refresh";
 
   //Appointment
     static const getAppointmentUrl="$baseApiUrl/get_appointments";
   static const getAppByIDUrl="$baseApiUrl/get_appointment";
   static const updateAppointmentStatusUrl="$baseApiUrl/update_appointment_status";
   static const updateAppointmentStatusToReschUrl="$baseApiUrl/appointment_rescheduled";
+
+  // Panel TV (Fase 2 medicare-node-api). Ver project_medicare_panel_tv_plan.md.
+  // El doctor llama paciente: callNext (auto-pick menor token de hoy) o
+  // callManual (elige appointment_id). Después puede recall/attend/noShow.
+  static const callNextUrl = "$baseApiUrl/calls/next";
+  static const callManualUrl = "$baseApiUrl/calls";
+  static const patientCallsBase = "$baseApiUrl/patient-calls";
+  static const clinicsBase = "$baseApiUrl/clinics"; // /{id}/active-calls
   //Invoice
   static const getInvoiceUrl="$baseApiUrl/get_invoice";
 

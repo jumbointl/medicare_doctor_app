@@ -144,8 +144,31 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      final List roles = resLogin['data']?['role'] ?? [];
-      final bool hasDoctorRole = roles.any((e) => e['name'] == "Doctor");
+      // Migración a Node: el shape cambió.
+      //   Laravel: data.role = [{name: 'Doctor', ...}, ...]
+      //   Node:    data.roles = ['Doctor', ...] (array de strings)
+      //   Node:    data.role  = {primary: 'Doctor', all: ['Doctor', ...]} (objeto)
+      // Aceptamos múltiples shapes para compatibilidad.
+      final dynamic roleField = resLogin['data']?['roles'] ??
+          resLogin['data']?['role'];
+      bool hasDoctorRole = false;
+      if (roleField is List) {
+        // Puede ser List<String> (Node) o List<Map> (Laravel).
+        hasDoctorRole = roleField.any((e) {
+          if (e is String) return e == 'Doctor';
+          if (e is Map) return e['name'] == 'Doctor';
+          return false;
+        });
+      } else if (roleField is Map) {
+        // Node: {primary, all}.
+        final all = roleField['all'];
+        if (all is List) {
+          hasDoctorRole = all.any((e) => e.toString() == 'Doctor');
+        }
+        if (!hasDoctorRole && roleField['primary'] == 'Doctor') {
+          hasDoctorRole = true;
+        }
+      }
 
       if (!hasDoctorRole) {
         IToastMsg.showMessage("this_account_is_not_doctor".tr);
@@ -157,7 +180,13 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      final assignClinicId = resLogin['data']?['assign_clinic_id'];
+      // `assign_clinic_id` no viene en el shape Node. Fallback:
+      // data.clinic_id (si existe) o data.doctor.clinic_id.
+      final assignClinicId = resLogin['data']?['assign_clinic_id'] ??
+          resLogin['data']?['clinic_id'] ??
+          (resLogin['data']?['doctor'] is Map
+              ? (resLogin['data']?['doctor'] as Map)['clinic_id']
+              : null);
       if (assignClinicId == null) {
         IToastMsg.showMessage("doctor_has_no_clinic_assigned".tr);
         if (mounted) {
@@ -187,9 +216,54 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       await preferences.setString(
+        SharedPreferencesConstants.dynamicKey,
+        resLogin['dynamic_key']?.toString() ?? '',
+      );
+
+      // Refresh-token Fase 2 (2026-05-13). Backend Node emite
+      // refresh_token al login; el interceptor 401 lo usará para
+      // renovar session-JWT cuando los 12h expiren, en vez de
+      // forzar logout silencioso.
+      final googleRefreshToken =
+          resLogin['refresh_token']?.toString() ?? '';
+      if (googleRefreshToken.isNotEmpty) {
+        await preferences.setString(
+          SharedPreferencesConstants.refreshToken,
+          googleRefreshToken,
+        );
+        await preferences.setString(
+          SharedPreferencesConstants.refreshTokenCreatedAt,
+          DateTime.now().toUtc().toIso8601String(),
+        );
+      }
+      await preferences.setString(
+        SharedPreferencesConstants.sessionTokenCreatedAt,
+        DateTime.now().toUtc().toIso8601String(),
+      );
+
+      await preferences.setString(
+        SharedPreferencesConstants.loginProvider,
+        // Para Google login: 'google' del backend, fallback al hardcoded
+        // que ya persiste más abajo en este flujo.
+        resLogin['login_provider']?.toString() ?? 'google',
+      );
+
+      await preferences.setString(
         SharedPreferencesConstants.uid,
         (resLogin['data']?['id'] ?? '').toString(),
       );
+
+      // Persistir doctor_id real (de la tabla doctors). El backend lo
+      // devuelve junto al user en `data.doctor_id`. Sin esto los queries
+      // de appointments / dashboard / doctor profile filtran por user_id
+      // y vienen vacíos.
+      final doctorIdRaw = resLogin['data']?['doctor_id'];
+      if (doctorIdRaw != null) {
+        await preferences.setString(
+          SharedPreferencesConstants.doctorId,
+          doctorIdRaw.toString(),
+        );
+      }
 
       await preferences.setString(
         SharedPreferencesConstants.clinicId,
@@ -531,6 +605,38 @@ class _LoginPageState extends State<LoginPage> {
       await  preferences.setString(SharedPreferencesConstants.email,email);
       await  preferences.setString(SharedPreferencesConstants.password,password);
       await  preferences.setString(SharedPreferencesConstants.token,token);
+      await  preferences.setString(
+        SharedPreferencesConstants.dynamicKey,
+        resLogin['dynamic_key']?.toString() ?? '',
+      );
+
+      // Refresh-token Fase 2 (2026-05-13). Backend Node emite
+      // refresh_token al login; el interceptor 401 lo usará para
+      // renovar session-JWT cuando los 12h expiren, en vez de
+      // forzar logout silencioso.
+      final pwdRefreshToken =
+          resLogin['refresh_token']?.toString() ?? '';
+      if (pwdRefreshToken.isNotEmpty) {
+        await preferences.setString(
+          SharedPreferencesConstants.refreshToken,
+          pwdRefreshToken,
+        );
+        await preferences.setString(
+          SharedPreferencesConstants.refreshTokenCreatedAt,
+          DateTime.now().toUtc().toIso8601String(),
+        );
+      }
+      await preferences.setString(
+        SharedPreferencesConstants.sessionTokenCreatedAt,
+        DateTime.now().toUtc().toIso8601String(),
+      );
+
+      await preferences.setString(
+        SharedPreferencesConstants.loginProvider,
+        // Backend medicare-node-api lo emite ('password'); fallback para
+        // versiones del backend que no lo manden aún.
+        resLogin['login_provider']?.toString() ?? 'password',
+      );
       await  preferences.setString(SharedPreferencesConstants.uid,uid);
       await  preferences.setString(SharedPreferencesConstants.name,name);
       await  preferences.setBool(SharedPreferencesConstants.login,true);

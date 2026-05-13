@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:pull_to_refresh_flutter3/pull_to_refresh_flutter3.dart';
 
 import '../controller/appointment_controller.dart';
 import '../model/appointment_model.dart';
@@ -31,17 +30,8 @@ class AppointmentTabView extends StatefulWidget {
 
 class _AppointmentTabViewState extends State<AppointmentTabView>
     with AutomaticKeepAliveClientMixin {
-  final RefreshController _refreshController =
-      RefreshController(initialRefresh: false);
-
   @override
   bool get wantKeepAlive => true;
-
-  @override
-  void dispose() {
-    _refreshController.dispose();
-    super.dispose();
-  }
 
   static String _todayString() {
     final now = DateTime.now();
@@ -51,13 +41,20 @@ class _AppointmentTabViewState extends State<AppointmentTabView>
     return '$y-$m-$d';
   }
 
+  // Backend returns DATE columns as full ISO ("2026-05-11T00:00:00.000Z"),
+  // so a raw == against today ("2026-05-11") never matches.
+  static String _dayOnly(String? raw) {
+    if (raw == null || raw.isEmpty) return '';
+    return raw.split('T').first.split(' ').first;
+  }
+
   static String _sortTimeKey(String? slot) {
     if (slot == null || slot.isEmpty) return '';
     return slot.split('-').first.trim();
   }
 
   static int _ascCompare(AppointmentModel a, AppointmentModel b) {
-    final cd = (a.date ?? '').compareTo(b.date ?? '');
+    final cd = _dayOnly(a.date).compareTo(_dayOnly(b.date));
     if (cd != 0) return cd;
     return _sortTimeKey(a.timeSlot).compareTo(_sortTimeKey(b.timeSlot));
   }
@@ -107,7 +104,7 @@ class _AppointmentTabViewState extends State<AppointmentTabView>
       case AppointmentMode.today:
         // Citas de hoy cuyo (start + duration) aún no pasó.
         final list = all.where((a) {
-          if ((a.date ?? '') != today) return false;
+          if (_dayOnly(a.date) != today) return false;
           final end = _appointmentEnd(a);
           if (end == null) return true; // sin hora parseable: la mostramos
           return end.isAfter(now);
@@ -117,7 +114,7 @@ class _AppointmentTabViewState extends State<AppointmentTabView>
       case AppointmentMode.past:
         // Pasadas: fecha anterior O (hoy y end <= now).
         final list = all.where((a) {
-          final d = a.date ?? '';
+          final d = _dayOnly(a.date);
           if (d.isEmpty) return false;
           if (d.compareTo(today) < 0) return true;
           if (d == today) {
@@ -131,28 +128,20 @@ class _AppointmentTabViewState extends State<AppointmentTabView>
         return list;
       case AppointmentMode.future:
         final list = all
-            .where((a) => (a.date ?? '').compareTo(today) > 0)
+            .where((a) => _dayOnly(a.date).compareTo(today) > 0)
             .toList();
         list.sort(_ascCompare);
         return list;
     }
   }
 
-  Future<void> _handleRefresh() async {
-    await widget.onRefresh();
-    if (_refreshController.isRefresh) {
-      _refreshController.refreshCompleted();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return SmartRefresher(
-      enablePullDown: true,
-      enablePullUp: false,
-      controller: _refreshController,
-      onRefresh: _handleRefresh,
+    // RefreshIndicator just needs a Scrollable descendant; it tolerates the
+    // intermediate Obx that SmartRefresher couldn't see through.
+    return RefreshIndicator(
+      onRefresh: widget.onRefresh,
       child: Obx(() {
         if (widget.controller.isLoading.value) {
           return const IVerticalListLongLoadingWidget();
@@ -174,6 +163,9 @@ class _AppointmentTabViewState extends State<AppointmentTabView>
         final filtered = _filterAndSort(widget.controller.dataList);
         if (filtered.isEmpty) {
           return ListView(
+            // AlwaysScrollable so RefreshIndicator triggers even when the
+            // list has no items and the viewport isn't filled.
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(40),
             children: [
               Center(
@@ -193,6 +185,7 @@ class _AppointmentTabViewState extends State<AppointmentTabView>
         final showCountdown = widget.mode == AppointmentMode.today;
         final headerCount = showCountdown ? 1 : 0;
         return ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(8),
           itemCount: filtered.length + headerCount,
           itemBuilder: (_, i) {

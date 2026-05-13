@@ -24,13 +24,22 @@ class AppointmentService{
     String? clinicIds,
   })async {
     SharedPreferences preferences=await  SharedPreferences.getInstance();
-    final uid= preferences.getString(SharedPreferencesConstants.uid)??"-1";
+    // Filtramos por doctor_id (PK de doctors), no por user_id. Backend
+    // espera `doct_id`; el schema acepta `doctor_id` como alias.
+    final doctorId = preferences.getString(SharedPreferencesConstants.doctorId)
+        ?? preferences.getString(SharedPreferencesConstants.uid)
+        ?? "-1";
    final body=<String, dynamic>{
       "start":start.toString(),
        "end":end.toString(),
-       "doctor_id":uid,
-     "search":search
+       "doct_id":doctorId,
     };
+    // search es opcional pero el backend rechaza "" — zod schema usa
+    // .min(1).optional() (empty string falla validación). Lo agregamos
+    // sólo si tiene contenido.
+    if (search.isNotEmpty) {
+      body["search"] = search;
+    }
     // clinic_ids takes precedence over clinic_id (matches backend logic).
     if (clinicIds != null && clinicIds.isNotEmpty) {
       body['clinic_ids'] = clinicIds;

@@ -23,11 +23,13 @@ import '../controller/my_clinics_controller.dart';
 import '../controller/notification_dot_controller.dart';
 import '../model/appointment_model.dart';
 import '../service/notification_seen_service.dart';
+import '../service/patient_calls_service.dart';
 import '../utilities/colors_constant.dart';
 import '../utilities/sharedpreference_constants.dart';
 import '../widget/drawer_widget.dart';
 import '../widget/image_box_widget.dart';
 import '../widget/appointment_tab_view.dart';
+import '../widget/toast_message.dart';
 import '../widget/doctor_profile_per_clinic_form.dart';
 import '../widget/doctor_profile_personal_form.dart';
 import '../widget/loading_Indicator_widget.dart';
@@ -43,6 +45,12 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   bool _isLoading=false;
   String _userId = '';
+  // Map appointment_id → patient_call activo (id+status). Lo cargamos al
+  // boot y lo refrescamos cuando el doctor toca Llamar/Re-llamar/etc en
+  // un card. Permite mostrar los 4 botones (espejo de doctor-web).
+  final Map<int, Map<String, dynamic>> _activeCallByApptId = {};
+  // Botones individuales en estado loading — usamos appointment_id como key.
+  final Set<int> _busyApptIds = {};
   AppointmentController appointmentController=Get.put(AppointmentController());
   DashboardController dashboardController=Get.put(DashboardController());
   final MyClinicsController myClinicsController = Get.put(MyClinicsController());
@@ -112,6 +120,7 @@ class _HomePageState extends State<HomePage> {
       _userId = uid;
     }
     await myClinicsController.loadForUser(uid);
+    await _refreshActiveCalls();
 
     // Refetch appointments whenever the user picks a different clinic.
     _clinicSelectionWorker?.dispose();
@@ -131,10 +140,10 @@ class _HomePageState extends State<HomePage> {
     _refetchDashboard();
   }
 
-  void _refetchDashboard() {
+  Future<void> _refetchDashboard() {
     final selected = myClinicsController.selectedClinicId.value;
     final range = _resolveDashRange();
-    dashboardController.getData(
+    return dashboardController.getData(
       clinicId: selected,
       from: range.fromIso,
       to: range.toIso,
@@ -235,10 +244,10 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _refetchAppointments() {
+  Future<void> _refetchAppointments() {
     final selected = myClinicsController.selectedClinicId.value;
     final allCsv = myClinicsController.allClinicIdsCsv;
-    appointmentController.getData(
+    return appointmentController.getData(
       0,
       20,
       selected?.toString(),
@@ -255,9 +264,12 @@ class _HomePageState extends State<HomePage> {
 
   /// Async variant used by the new tabs (AppointmentTabView). Awaits the
   /// fetches so the SmartRefresher inside each tab can complete its spinner.
-  Future<void> _onRefreshAsync() async {
-    _refetchAppointments();
-    _refetchDashboard();
+  /// Also bound to the AppBar refresh button.
+  Future<void> _onRefreshAsync() {
+    return Future.wait([
+      _refetchAppointments(),
+      _refetchDashboard(),
+    ]);
   }
   Future<bool> _isGoogleLoginExpired() async {
     final prefs = await SharedPreferences.getInstance();
@@ -307,7 +319,26 @@ class _HomePageState extends State<HomePage> {
               fontSize: 16
           ),
         ),
-        actions: [IconButton(onPressed: (){}, icon:
+        actions: [
+          Obx(() {
+            final loading = appointmentController.isLoading.value ||
+                dashboardController.isLoading.value;
+            return IconButton(
+              tooltip: "refresh".tr,
+              onPressed: loading ? null : _onRefreshAsync,
+              icon: loading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Icon(Icons.refresh, color: Colors.white),
+            );
+          }),
+          IconButton(onPressed: (){}, icon:
         Stack(
           children: [
             IconButton(
@@ -603,20 +634,26 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     Row(
                       children: [
-                        buildCard("appointment".tr,dashboardModel.totalAppointments?.toString()??"0",ImageConstants.totalAppointmentImage,Colors.green),
-                        buildCard("today".tr,dashboardModel.totalTodayAppointment?.toString()??"0",ImageConstants.todayImage,Colors.orange),
+                        buildCard("appointment".tr,dashboardModel.totalAppointments?.toString()??"0",ImageConstants.totalAppointmentImage,Colors.green, borderColor: Colors.green),
+                        buildCard("today".tr,dashboardModel.totalTodayAppointment?.toString()??"0",ImageConstants.todayImage,Colors.orange, borderColor: Colors.green),
                       ],
                     ),
                     Row(
                       children: [
-                        buildCard("pending".tr,dashboardModel.totalPendingAppointment?.toString()??"0",ImageConstants.pendingImage,Colors.yellow),
-                        buildCard("cancelled".tr,dashboardModel.totalCancelledAppointment?.toString()??"0",ImageConstants.cancelledImage,Colors.redAccent),
+                        buildCard("pending".tr,dashboardModel.totalPendingAppointment?.toString()??"0",ImageConstants.pendingImage,Colors.yellow, borderColor: Colors.amber),
+                        buildCard("cancelled".tr,dashboardModel.totalCancelledAppointment?.toString()??"0",ImageConstants.cancelledImage,Colors.redAccent, borderColor: Colors.red),
                       ],
                     ),
                     Row(
                       children: [
-                        buildCard("confirmed".tr,dashboardModel.totalConfirmedAppointment?.toString()??"0",ImageConstants.confirmedImage,Colors.green),
-                        buildCard("rejected".tr,dashboardModel.totalRejectedAppointment?.toString()??"0",ImageConstants.rejectedImage,Colors.redAccent),
+                        buildCard("confirmed".tr,dashboardModel.totalConfirmedAppointment?.toString()??"0",ImageConstants.confirmedImage,Colors.green, borderColor: Colors.green),
+                        buildCard("rejected".tr,dashboardModel.totalRejectedAppointment?.toString()??"0",ImageConstants.rejectedImage,Colors.redAccent, borderColor: Colors.red),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        buildCard("visited".tr,dashboardModel.totalVisitedAppointment?.toString()??"0",ImageConstants.confirmedImage,Colors.teal, borderColor: Colors.green),
+                        buildCard("no_show".tr,dashboardModel.totalNoShowAppointment?.toString()??"0",ImageConstants.cancelledImage,Colors.deepOrange, borderColor: Colors.red),
                       ],
                     ),
                   ],
@@ -631,7 +668,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Expanded buildCard(String titleFirst,String numbers,String imageAsset,Color dotIconColor) {
+  Expanded buildCard(String titleFirst,String numbers,String imageAsset,Color dotIconColor, {Color? borderColor}) {
     return Expanded(
       child:  SizedBox(
         height: 100,
@@ -639,7 +676,10 @@ class _HomePageState extends State<HomePage> {
           elevation: 1,
           color: ColorResources.cardBgColor,
           shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(5)
+              borderRadius: BorderRadius.circular(5),
+              side: borderColor != null
+                  ? BorderSide(color: borderColor, width: 3)
+                  : BorderSide.none,
           ),
           child: Padding(
             padding: const EdgeInsets.all(8.0),
@@ -757,6 +797,65 @@ class _HomePageState extends State<HomePage> {
         ),
       );
     });
+  }
+
+  /// Trae los patient_calls activos (called/recalled) de la clínica
+  /// seleccionada y los indexa por appointment_id. Lo llamamos al boot y
+  /// luego de cada acción del doctor para mantener sincronizado.
+  Future<void> _refreshActiveCalls() async {
+    final clinicId = myClinicsController.selectedClinicId.value;
+    if (clinicId == null || clinicId <= 0) return;
+    try {
+      final list = await PatientCallsService.activeCalls(clinicId);
+      final next = <int, Map<String, dynamic>>{};
+      for (final row in list) {
+        if (row is! Map) continue;
+        final apptId = (row['appointment_id'] as num?)?.toInt();
+        final callId = (row['id'] as num?)?.toInt();
+        if (apptId == null || callId == null) continue;
+        next[apptId] = {
+          'id': callId,
+          'status': (row['status'] ?? 'called').toString(),
+          'token': (row['token'] ?? '').toString(),
+        };
+      }
+      if (mounted) {
+        setState(() {
+          _activeCallByApptId
+            ..clear()
+            ..addAll(next);
+        });
+      }
+    } catch (_) {
+      // Silencioso — los botones siguen funcionando, solo no sabemos qué
+      // appointments tienen call activo hasta que el doctor pulse Llamar.
+    }
+  }
+
+  Future<void> _runCallAction(
+    int appointmentId,
+    Future<Map<String, dynamic>?> Function() action, {
+    String? successMsg,
+  }) async {
+    if (_busyApptIds.contains(appointmentId)) return;
+    setState(() => _busyApptIds.add(appointmentId));
+    try {
+      final res = await action();
+      if (res == null) {
+        IToastMsg.showMessage("network_error".tr);
+        return;
+      }
+      if (res['status'] == true || res['response'] == 200) {
+        if (successMsg != null) IToastMsg.showMessage(successMsg);
+        await _refreshActiveCalls();
+      } else {
+        IToastMsg.showMessage(
+          res['message']?.toString() ?? "could_not_process".tr,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busyApptIds.remove(appointmentId));
+    }
   }
 
   ListView buildAppointmentList(dataList){
@@ -894,11 +993,9 @@ class _HomePageState extends State<HomePage> {
                                   ],
                                 ),
                               ),
-                              // appointmentDetails[index].appointmentStatus=="Visited"?
-
-                              //:Container(),
                             ],
                           ),
+                          _callActionButtons(appointmentModel),
                         ],
                       ),
                     ),
@@ -911,11 +1008,129 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
+
+  /// 4 botones de doctor-web por card: Llamar / Re-llamar / Atendido / No
+  /// show. Cambia el set visible según haya patient_call activo.
+  Widget _callActionButtons(AppointmentModel a) {
+    final apptId = a.id;
+    if (apptId == null || apptId <= 0) return const SizedBox.shrink();
+    final active = _activeCallByApptId[apptId];
+    final busy = _busyApptIds.contains(apptId);
+
+    if (active == null) {
+      // Sin call activo → solo "Llamar".
+      return Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            _miniCallButton(
+              label: "call".tr,
+              icon: Icons.campaign,
+              color: Colors.cyan,
+              busy: busy,
+              onTap: () => _runCallAction(
+                apptId,
+                () => PatientCallsService.callManual(apptId),
+                successMsg: "patient_called".tr,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Hay call activo → 3 acciones sobre call.id.
+    final callId = (active['id'] as num).toInt();
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        alignment: WrapAlignment.end,
+        children: [
+          _miniCallButton(
+            label: "recall".tr,
+            icon: Icons.campaign,
+            color: Colors.amber.shade700,
+            busy: busy,
+            onTap: () => _runCallAction(
+              apptId,
+              () => PatientCallsService.recall(callId),
+              successMsg: "patient_recalled".tr,
+            ),
+          ),
+          _miniCallButton(
+            label: "visited".tr,
+            icon: Icons.check_circle_outline,
+            color: Colors.green.shade700,
+            busy: busy,
+            onTap: () => _runCallAction(
+              apptId,
+              () => PatientCallsService.attend(callId),
+              successMsg: "visited".tr,
+            ),
+          ),
+          _miniCallButton(
+            label: "no_show".tr,
+            icon: Icons.person_off_outlined,
+            color: Colors.red.shade700,
+            busy: busy,
+            onTap: () => _runCallAction(
+              apptId,
+              () => PatientCallsService.noShow(callId),
+              successMsg: "patient_no_show_marked".tr,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniCallButton({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required bool busy,
+    required VoidCallback onTap,
+  }) {
+    return ElevatedButton.icon(
+      onPressed: busy ? null : onTap,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        minimumSize: const Size(0, 30),
+        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      ),
+      icon: busy
+          ? const SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            )
+          : Icon(icon, size: 14),
+      label: Text(label),
+    );
+  }
   Widget _appointmentDate(date) {
-    //  print(date);
-    var appointmentDate = date.split("-");
+    // El backend ahora devuelve ISO completo (`2026-05-10T00:00:00.000Z`)
+    // — el split por "-" dejaba el día como "10T00:00:00.000Z". Parseamos
+    // como DateTime para sacar mes/día/año limpios.
+    if (date == null || date.toString().isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final parsed = DateTime.tryParse(date.toString());
+    final monthNum = parsed?.month ?? int.tryParse(date.toString().split('-').elementAtOrNull(1) ?? '') ?? 0;
+    final dayStr = parsed != null
+        ? parsed.day.toString().padLeft(2, '0')
+        : (date.toString().split('-').elementAtOrNull(2)?.split(RegExp('[T ]')).first ?? '');
+    final yearStr = parsed != null
+        ? parsed.year.toString()
+        : (date.toString().split('-').elementAtOrNull(0) ?? '');
     String appointmentMonth="";
-    switch (int.parse(appointmentDate[1])) {
+    switch (monthNum) {
       case 1:
         appointmentMonth = "month_jan";
         break;
@@ -962,13 +1177,13 @@ class _HomePageState extends State<HomePage> {
               fontWeight: FontWeight.w600,
               fontSize: 15,
             )),
-        Text(appointmentDate[2],
+        Text(dayStr,
             style: const TextStyle(
               fontWeight: FontWeight.w600,
               color: ColorResources.primaryColor,
               fontSize: 35,
             )),
-        Text(appointmentDate[0],
+        Text(yearStr,
             style: const TextStyle(
               fontWeight: FontWeight.w600,
               fontSize: 15,

@@ -8,6 +8,7 @@ class DashboardModel{
   int? totalCancelledAppointment;
   int? totalCompletedAppointment;
   int? totalVisitedAppointment;
+  int? totalNoShowAppointment;
   int? totalUpcomingAppointments;
 
   DashboardModel({
@@ -20,6 +21,7 @@ class DashboardModel{
     this.totalCancelledAppointment,
     this.totalCompletedAppointment,
     this.totalVisitedAppointment,
+    this.totalNoShowAppointment,
     this.totalUpcomingAppointments,
   });
 
@@ -34,8 +36,8 @@ class DashboardModel{
       totalCancelledAppointment: json['total_cancelled_appointment'] ,
       totalCompletedAppointment: json['total_completed_appointment'],
       totalVisitedAppointment: json['total_visited_appointment'],
+      totalNoShowAppointment: json['total_no_show_appointment'],
       totalUpcomingAppointments: json['total_upcoming_appointments']
-
     );
   }
 

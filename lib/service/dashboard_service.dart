@@ -23,14 +23,18 @@ class DashboardService{
     String? to,
   }) async {
     SharedPreferences preferences=await  SharedPreferences.getInstance();
-    final uid= preferences.getString(SharedPreferencesConstants.uid)??"-1";
+    // doctor_id real (no user_id). Backend filtra dashboard del doctor
+    // por el PK de la tabla doctors.
+    final doctorId = preferences.getString(SharedPreferencesConstants.doctorId)
+        ?? preferences.getString(SharedPreferencesConstants.uid)
+        ?? "-1";
 
     final qs = <String>[];
     if (clinicId != null) qs.add('clinic_id=$clinicId');
     if (from != null && from.isNotEmpty) qs.add('from=$from');
     if (to != null && to.isNotEmpty) qs.add('to=$to');
 
-    final url = qs.isEmpty ? "$getUrl/$uid" : "$getUrl/$uid?${qs.join('&')}";
+    final url = qs.isEmpty ? "$getUrl/$doctorId" : "$getUrl/$doctorId?${qs.join('&')}";
     final res=await GetService.getReq(url);
     if(res==null) {
       return null;

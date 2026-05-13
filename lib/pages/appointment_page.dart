@@ -2,12 +2,16 @@ import '../controller/appoitnment_controller_serach.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:pull_to_refresh_flutter3/pull_to_refresh_flutter3.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../helper/route_helper.dart';
 import '../model/appointment_model.dart';
+import '../service/patient_calls_service.dart';
 import '../utilities/colors_constant.dart';
+import '../utilities/sharedpreference_constants.dart';
 import '../widget/error_widget.dart';
 import '../widget/loading_Indicator_widget.dart';
 import '../widget/no_data_widgets.dart';
+import '../widget/toast_message.dart';
 
 class AppointmentPage extends StatefulWidget {
   const AppointmentPage({super.key});
@@ -25,11 +29,43 @@ class _AppointmentPageState extends State<AppointmentPage> {
   RefreshController refreshController=RefreshController();
   int start=0;
   int end=20;
+  bool _callingNext = false;
 
   @override
   void initState() {
     appointmentSearchController.getData();
     super.initState();
+  }
+
+  /// Panel TV (Fase 2): llama al próximo paciente con check-in de la clínica
+  /// activa (`SharedPreferencesConstants.clinicId`). El backend pickea el
+  /// menor token de hoy aún no llamado; si no hay, devuelve bizErr.
+  Future<void> _llamarProximo() async {
+    if (_callingNext) return;
+    final prefs = await SharedPreferences.getInstance();
+    final clinicRaw = prefs.getString(SharedPreferencesConstants.clinicId) ?? '';
+    final clinicId = int.tryParse(clinicRaw);
+    if (clinicId == null || clinicId <= 0) {
+      IToastMsg.showMessage("no_active_clinic".tr);
+      return;
+    }
+    if (mounted) setState(() => _callingNext = true);
+    try {
+      final res = await PatientCallsService.callNext(clinicId);
+      if (res == null) {
+        IToastMsg.showMessage("network_error".tr);
+        return;
+      }
+      if (res['status'] == true) {
+        final token = (res['data']?['token'] ?? '').toString();
+        IToastMsg.showMessage("calling_token".trParams({'token': token}));
+      } else {
+        IToastMsg.showMessage(
+            res['message']?.toString() ?? "no_pending_calls".tr);
+      }
+    } finally {
+      if (mounted) setState(() => _callingNext = false);
+    }
   }
   void _onRefresh() async{
     refreshController.refreshCompleted();
@@ -65,6 +101,23 @@ class _AppointmentPageState extends State<AppointmentPage> {
                 ),),
             ],
           ),
+          actions: [
+            // Panel TV — llamar próximo paciente. Toma clinic_id del local.
+            IconButton(
+              onPressed: _callingNext ? null : _llamarProximo,
+              tooltip: "call_next_patient".tr,
+              icon: _callingNext
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.phone_forwarded, color: Colors.white),
+            ),
+          ],
         ),
         body:
         Stack(

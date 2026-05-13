@@ -16,8 +16,14 @@ class DoctorsService{
 
   static Future <DoctorsModel?> getDataById()async {
     SharedPreferences preferences=await  SharedPreferences.getInstance();
-    final uid= preferences.getString(SharedPreferencesConstants.uid)??"-1";
-    final res=await GetService.getReq("$getUrl/$uid");
+    // `doctor_id` se persiste en el login a partir de `data.doctor_id`
+    // del backend. Antes se pasaba `uid` (user.id) que NO corresponde al
+    // PK de `doctors` y devolvía 404. Fallback a uid si no está seteado
+    // (instalación nueva pre-login con doctor_id key).
+    final doctorId = preferences.getString(SharedPreferencesConstants.doctorId)
+        ?? preferences.getString(SharedPreferencesConstants.uid)
+        ?? "-1";
+    final res=await GetService.getReq("$getUrl/$doctorId");
     if(res==null) {
       return null;
     } else {

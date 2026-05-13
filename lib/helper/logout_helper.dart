@@ -18,6 +18,12 @@ Future<void> forceLogoutDoctorApp() async {
   await prefs.setBool(SharedPreferencesConstants.login, false);
   await prefs.remove(SharedPreferencesConstants.googleLoginAt);
   await prefs.remove(SharedPreferencesConstants.loginProvider);
+  // Refresh-token Fase 2 (2026-05-13). Limpiar también las keys de
+  // refresh para que un logout real (manual o por session expirada
+  // sin posibilidad de refresh) deje el storage limpio.
+  await prefs.remove(SharedPreferencesConstants.refreshToken);
+  await prefs.remove(SharedPreferencesConstants.refreshTokenCreatedAt);
+  await prefs.remove(SharedPreferencesConstants.sessionTokenCreatedAt);
 
   try {
     await FirebaseAuth.instance.signOut();

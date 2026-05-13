@@ -8,7 +8,7 @@ class AppointmentController extends GetxController {
   var isError = false.obs;
 
 
-  void getData([
+  Future<void> getData([
     int start = 0,
     int end = 20,
     String? clinicId,
