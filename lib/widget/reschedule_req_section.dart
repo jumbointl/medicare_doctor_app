@@ -81,19 +81,19 @@ class RescheduleReqSection extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Reject reschedule request'),
+        title: Text('reject_reschedule_request'.tr),
         content: TextField(
           controller: notesCtrl,
-          decoration: const InputDecoration(labelText: 'Reason (optional)'),
+          decoration: InputDecoration(labelText: 'reason_optional'.tr),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: Text('cancel'.tr),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Reject'),
+            child: Text('reject'.tr),
           ),
         ],
       ),
@@ -131,13 +131,13 @@ class _RescheduleReqRow extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('To: ${request.requestedDate ?? '-'}  ${request.requestedTimeSlots ?? '-'}'),
+          Text('${'to_label'.tr}${request.requestedDate ?? '-'}  ${request.requestedTimeSlots ?? '-'}'),
           if ((request.notes ?? '').isNotEmpty)
-            Text('Notes: ${request.notes}', style: const TextStyle(fontSize: 12)),
+            Text('${'notes_label'.tr}${request.notes}', style: const TextStyle(fontSize: 12)),
           Row(
             children: [
-              TextButton(onPressed: onApprove, child: const Text('Approve')),
-              TextButton(onPressed: onReject, child: const Text('Reject')),
+              TextButton(onPressed: onApprove, child: Text('approve'.tr)),
+              TextButton(onPressed: onReject, child: Text('reject'.tr)),
             ],
           ),
           const Divider(),

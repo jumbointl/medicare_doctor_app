@@ -141,9 +141,9 @@ class IDrawerWidget{
                         borderRadius: BorderRadius.circular(10.0),
                       ),
                       color: ColorResources.containerBgColor,
-                      child:  const Padding(
-                        padding: EdgeInsets.all(5.0),
-                        child: Text("Member",
+                      child:  Padding(
+                        padding: const EdgeInsets.all(5.0),
+                        child: Text("member".tr,
                           style: TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 14

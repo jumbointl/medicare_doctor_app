@@ -328,5 +328,11 @@ final Map<String, Map<String, String>> zhKeys = {
     'video_join_cannot_open_video': '无法打开视频通话。',
     'video_join_unsupported_provider': '不支持的视频提供商。',
     'video_join_consultation_title': '视频问诊',
+    'member': '会员',
+    'cancel': '取消',
+    'to_label': '至: ',
+    'notes_label': '备注: ',
+    'sorry_it_error!': '抱歉，出错了！',
+    'no_internet_check_desc': '没有网络，请检查您的网络连接并重试！',
   }
 };

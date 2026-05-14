@@ -334,6 +334,12 @@ final Map<String, Map<String, String>> esKeys = {
     'video_join_invalid_video_link': 'El enlace de video no es válido.',
     'video_join_cannot_open_video': 'No se pudo abrir la videollamada.',
     'video_join_unsupported_provider': 'Proveedor de video no soportado.',
-    'video_join_consultation_title': 'Consulta por video'
+    'video_join_consultation_title': 'Consulta por video',
+    'member': 'Miembro',
+    'cancel': 'Cancelar',
+    'to_label': 'Hasta: ',
+    'notes_label': 'Notas: ',
+    'sorry_it_error!': '¡Lo sentimos, hubo un error!',
+    'no_internet_check_desc': 'Sin conexión, verifica tu internet e intenta nuevamente.',
   }
 };

@@ -328,5 +328,11 @@ final Map<String, Map<String, String>> zhTwKeys = {
     'video_join_cannot_open_video': '無法開啟視訊通話。',
     'video_join_unsupported_provider': '不支援的視訊供應商。',
     'video_join_consultation_title': '視訊看診',
+    'member': '會員',
+    'cancel': '取消',
+    'to_label': '至: ',
+    'notes_label': '備註: ',
+    'sorry_it_error!': '抱歉，發生錯誤！',
+    'no_internet_check_desc': '無網路，請檢查您的網路連線並重試！',
   }
 };

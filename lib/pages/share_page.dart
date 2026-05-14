@@ -37,7 +37,7 @@ class _ShareAppPageState extends State<ShareAppPage> {
                 'Download ${AppConstants.appName} app $appShareLink',
                 subject: AppConstants.appName);
           }
-        },title: "Share"),
+        },title: "share".tr),
       ),
       appBar: IAppBar.commonAppBar(title: "share".tr),
       body: _buildBody(),

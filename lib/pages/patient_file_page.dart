@@ -35,7 +35,7 @@ class _PatientFilePageState extends State<PatientFilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        appBar: IAppBar.commonAppBar(title: "Patient Files"),
+        appBar: IAppBar.commonAppBar(title: "patient_files".tr),
         body: isLoading?const ILoadingIndicatorWidget(): ListView(
           controller: _scrollController,
 
@@ -52,7 +52,7 @@ class _PatientFilePageState extends State<PatientFilePage> {
                       },
                       controller: _textEditingController,
                       decoration: InputDecoration(
-                        hintText: 'Search...',
+                        hintText: 'search...'.tr,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8.0),
                         ),

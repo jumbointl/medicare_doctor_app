@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:get/get.dart';
 import '../utilities/image_constants.dart';
 
 class IErrorWidget extends StatelessWidget {
@@ -23,7 +24,7 @@ class IErrorWidget extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          const Text("Sorry it's error!",style: TextStyle(
+          Text("sorry_it_error!".tr,style: const TextStyle(
             fontFamily: 'OpenSans-SemiBold',
             fontSize: 14,
           )),
@@ -54,8 +55,8 @@ class NoInternetErrorWidget extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          const Center(
-            child: Text("No internet, please check your internet connection and try again!",style: TextStyle(
+          Center(
+            child: Text("no_internet_check_desc".tr,style: const TextStyle(
               fontFamily: 'OpenSans-SemiBold',
               fontSize: 14,
             )),

@@ -336,5 +336,11 @@ final Map<String, Map<String, String>> enKeys = {
     'video_join_cannot_open_video': 'Could not open the video call.',
     'video_join_unsupported_provider': 'Unsupported video provider.',
     'video_join_consultation_title': 'Video consultation',
+    'member': 'Member',
+    'cancel': 'Cancel',
+    'to_label': 'To: ',
+    'notes_label': 'Notes: ',
+    'sorry_it_error!': "Sorry it's error!",
+    'no_internet_check_desc': 'No internet, please check your internet connection and try again!',
   }
 };

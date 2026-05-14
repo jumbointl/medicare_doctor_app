@@ -328,6 +328,11 @@ final Map<String, Map<String, String>> ptKeys = {
     'video_join_cannot_open_video': 'Não foi possível abrir a videochamada.',
     'video_join_unsupported_provider': 'Provedor de vídeo não suportado.',
     'video_join_consultation_title': 'Consulta por vídeo',
-
+    'member': 'Membro',
+    'cancel': 'Cancelar',
+    'to_label': 'Até: ',
+    'notes_label': 'Notas: ',
+    'sorry_it_error!': 'Desculpe, ocorreu um erro!',
+    'no_internet_check_desc': 'Sem internet, verifique sua conexão e tente novamente.',
   }
 };
