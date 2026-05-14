@@ -301,6 +301,9 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
 
     final userId = await _getCurrentUserId();
     final token = await _getAuthToken();
+    final prefs = await SharedPreferences.getInstance();
+    final dynamicKey =
+        prefs.getString(SharedPreferencesConstants.dynamicKey) ?? '';
     String url = '${ApiContents.baseApiUrl}/doctor-web/appointments/$appointmentId/video/join-data';
     debugPrint('VIDEO JOIN URL: $url');
 
@@ -315,6 +318,13 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
 
     if (token.trim().isNotEmpty) {
       headers['Authorization'] = 'Bearer $token';
+    }
+
+    // Backend medicare-node-api enforce x-dynamic-key en endpoints
+    // autenticados (2026-05-08+). Sin esto el join-data tira 401
+    // "x-dynamic-key header missing". Pablo 2026-05-13.
+    if (dynamicKey.trim().isNotEmpty) {
+      headers['x-dynamic-key'] = dynamicKey;
     }
 
     final response = await http.post(
