@@ -1,3 +1,5 @@
+import 'package:flutter/widgets.dart';
+
 class ApiContents{
 
  // static const webApiUrl="http://192.168.1.38:8000";
@@ -8,6 +10,33 @@ class ApiContents{
   //API_BASE_URLcd
   static const baseApiUrl="$webApiUrl/api/v1";
   static const imageUrl="$webApiUrl/public/storage";
+
+  // Asset placeholder usado cuando un campo de imagen viene null/empty.
+  // Declarado en pubspec.yaml. NO removerlo sin actualizar safeImage().
+  static const noAvailableAsset = 'assets/icons/no-available.png';
+
+  static bool _isFalsy(String? f) {
+    if (f == null) return true;
+    final t = f.trim();
+    return t.isEmpty || t == 'null' || t == 'undefined';
+  }
+
+  /// URL completa hacia el storage backend, o cadena vacía si el campo es
+  /// null/empty/literal "null"/"undefined". Usar para call sites que pasan
+  /// el resultado a ImageBoxFillWidget (que detecta vacío y muestra placeholder).
+  static String imgUrl(String? field) {
+    if (_isFalsy(field)) return '';
+    return '$imageUrl/${field!.trim()}';
+  }
+
+  /// ImageProvider listo para `DecorationImage(image: ...)`,
+  /// `CircleAvatar(backgroundImage: ...)` o cualquier consumo de ImageProvider.
+  /// Devuelve AssetImage local cuando el campo es null/empty/falsy.
+  static ImageProvider safeImage(String? field) {
+    if (_isFalsy(field)) return const AssetImage(noAvailableAsset);
+    return NetworkImage('$imageUrl/${field!.trim()}');
+  }
+
   static const prescriptionUrl="$baseApiUrl/prescription/generatePDF";
   static const invoiceUrl="$baseApiUrl/invoice/generatePDF";
   static const prescriptionSearchUrl="$baseApiUrl/get_prescription";
