@@ -44,6 +44,9 @@ class ApiContents{
 
   //Login
   static const loginUrl="$baseApiUrl/login";
+  // Login para desarrollo + impersonate opcional por email. Solo
+  // accesible cuando AppConstants.isProductionMode == true (gate UI).
+  static const loginDevUrl="$baseApiUrl/login/dev";
   static const loginOutUrl="$baseApiUrl/logout";
   static const refreshDynamicKeyUrl="$baseApiUrl/refresh-dynamic-key";
   // Refresh-token Fase 2 (2026-05-13). POST con `refresh_token` en body;

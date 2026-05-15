@@ -6,6 +6,7 @@ import '../helper/route_helper.dart';
 import '../service/login_screen_service.dart';
 import '../service/login_service.dart';
 import '../utilities/api_content.dart';
+import 'login_dev_page.dart';
 import '../widget/loading_Indicator_widget.dart';
 import '../widget/toast_message.dart';
 import 'package:flutter/material.dart';
@@ -533,6 +534,24 @@ class _LoginPageState extends State<LoginPage> {
                               }
 
                             }),
+                            // LoginDev entry — visible solo cuando isProductionMode=true.
+                            // Cierra el bottom sheet y abre la pantalla de login para
+                            // desarrollo + impersonate.
+                            if (AppConstants.isProductionMode)
+                              TextButton(
+                                onPressed: () {
+                                  Get.back();
+                                  Get.to(() => const LoginDevPage());
+                                },
+                                child: Text(
+                                  "login_dev_entry".tr,
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 12,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       ),
