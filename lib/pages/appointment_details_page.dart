@@ -595,9 +595,11 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
       return Container();
     }
 
+    // Pablo 2026-05-16: 'Visited' NO bloquea el video — el doctor puede
+    // re-abrir el Meet existente mientras la ventana de Agora siga abierta
+    // (re-join después de corte de llamada). Solo terminales reales bloquean.
     if (appointmentModel?.status == "Rejected" ||
         appointmentModel?.status == "Cancelled" ||
-        appointmentModel?.status == "Visited" ||
         appointmentModel?.status == "Completed") {
       return Container();
     }
